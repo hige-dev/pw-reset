@@ -1,6 +1,8 @@
 ## 概要
 
-GoogleフォームにユーザーIDを入力して送信すると、API Gatewayが受け取ってLambdaを実行する
+![](./flow.drawio.svg)
+
+GoogleフォームにユーザーIDを入力して送信すると、API Gatewayが受け取ってLambdaを実行する<br>
 Lambdaでは、対象ユーザーのパスワードをリセットし、一時パスワードを発行する
 
 共通一次パスワード：`"U{ユーザー名}_{date +%Y%m%d%H}"`
