@@ -14,12 +14,14 @@ resource "aws_iam_policy" "pw_reset" {
                     "iam:UpdateLoginProfile",
                     "iam:CreateLoginProfile",
                     "iam:GetLoginProfile",
-                    "iam:GetUser"
+                    "iam:GetUser",
+                    "ses:SendEmail"
                 ],
                 "Resource": [
                     "arn:aws:iam::${var.account_id}:user/*",
                     "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}",
-                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}:log-stream:*"
+                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}:log-stream:*",
+                    "arn:aws:ses:*:${var.account_id}:identity/*"
                 ]
             }
         ]
