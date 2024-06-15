@@ -1,4 +1,5 @@
 function gaslog_formSubmit(e) {
+  let email = e.response.getRespondentEmail();
   let itemResponses;
   // フォームの回答をイベントオブジェクトまたはフォーム自身から取得する。
   if (e !== undefined) {
@@ -17,7 +18,7 @@ function gaslog_formSubmit(e) {
 
   // https://next-k.site/blog/archives/2022/05/06/795
   let URL = PropertiesService.getScriptProperties().getProperty("API_ENDPOINT") + "/pw-reset";
-  let data = {'user': userName };
+  let data = {'user': userName, 'email': email };
   let headers = { 'Authorization': PropertiesService.getScriptProperties().getProperty("AUTH_VALUE") };
   let options = {
     "headers": headers,

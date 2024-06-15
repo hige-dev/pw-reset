@@ -47,11 +47,9 @@ def lambda_handler(event, context):
     print(f'context: {context}')
 
     strBody = base64.b64decode(event.get('body')).decode()
-    param = json.loads(strBody)
-    print('param:', param)
-    user = param['user']
-    print(f'user: {user}')
-    create_login_profile(user)
+    params = json.loads(strBody)
+    print('param:', params)
+    create_login_profile(params.get('user'))
 
     return {
         'statusCode': 200,
