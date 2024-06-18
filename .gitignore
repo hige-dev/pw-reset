@@ -1,4 +1,4 @@
 .terraform
 terraform.tfvars
 .terraform.lock.hcl
-pw-reset.zip
+*.zip

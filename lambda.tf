@@ -1,6 +1,6 @@
 data "archive_file" "pw_reset" {
     type = "zip"
-    source_dir  = "${path.module}/pw-reset"
+    source_dir  = "${path.module}/scripts/pw-reset"
     output_path = "${path.module}/pw-reset.zip"
 }
 
