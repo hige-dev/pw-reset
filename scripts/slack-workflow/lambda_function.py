@@ -35,7 +35,7 @@ def lambda_handler(event, context):
             "text": txt,
             "attachments": [
                 {
-                    "text": "承認または拒否を選択してください。\n※処理時間の関係上、「何らかのエラーが発生しました。もう一度お試しください。」と表示されますが問題ありません",
+                    "text": "承認または拒否を選択してください。",
                     "fallback": "You are unable to choose",
                     "callback_id": "approval_request",
                     "color": "#3AA3E3",

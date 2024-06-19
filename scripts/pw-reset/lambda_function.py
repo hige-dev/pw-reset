@@ -4,9 +4,15 @@ import boto3
 from urllib.parse import parse_qs
 from datetime import datetime, timedelta, timezone
 from botocore.exceptions import ClientError
+import asyncio
 
 
 def lambda_handler(event, context):
+    # 3秒以上かかって処理できてもslack上でエラーになってしまうので非同期
+    asyncio.run(pw_reset(event))
+
+
+async def pw_reset(event):
     # Slackからのリクエストデータをパース
     body = json.loads(
             parse_qs(base64.b64decode(event["body"]).decode("utf-8"))["payload"][0]
@@ -21,15 +27,16 @@ def lambda_handler(event, context):
         token = ssm.get_parameter(KEY)
         # イベントとコンテキストの内容を出力
         if params.get('token') == token:
-            resp = create_login_profile(params.get('user'))
+            task = asyncio.create_task(create_login_profile(params.get('user')))
+            await task
             ssm.delete_parameter(KEY)
-            return resp
+            return 'リクエストが承認されました'
         else:
-            ssm.delete_parameter(KEY)
-            return {
-                'statuscode': 200,
-                'body': '不正なトークンです'
-            }
+            try:
+                ssm.delete_parameter(KEY)
+            except ClientError:
+                pass
+            return '不正なトークンです'
     else:
         # 拒否の場合
         ssm = SsmParameter()
@@ -58,10 +65,7 @@ def create_login_profile(user):
         iam_client.get_user(UserName=user)
     except ClientError:
         print(f'[ERROR] user: {user} is not exists.')
-        return {
-            'statusCode': 200,
-            'body': 'ユーザーが見つかりませんでした'
-        }
+        return 'ユーザーが見つかりませんでした'
     try:
         iam_client.update_login_profile(
             UserName=user,
@@ -77,10 +81,7 @@ def create_login_profile(user):
             )
         else:
             print(e.response)
-            return {
-                'statusCode': 200,
-                'body': 'エラーが発生しました。/aws/lambda/pw-resetのログを確認してください'
-            }
+            return 'エラーが発生しました。/aws/lambda/pw-resetのログを確認してください'
 
 
 class SsmParameter:
