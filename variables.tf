@@ -4,3 +4,4 @@ variable "lambda_auth_value" {}
 variable "sns_target" {}
 variable "alarm_period" { default = 900 }
 variable "alarm_threshold" { default = 100 }
+variable "slack_webhook_url" {}

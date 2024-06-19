@@ -22,7 +22,7 @@ def lambda_handler(event, context):
         strBody = base64.b64decode(event.get('body')).decode()
         params = json.loads(strBody)
 
-        # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-2024010113-{username}
+        # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
         KEY = make_key_unique("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
         params['token'] = ssm.save_token_to_parameter_store(KEY)
         print(params)
