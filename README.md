@@ -22,6 +22,7 @@ cat <<EOS > terraform.tfvars
 account_id = {AWSのアカウントID}
 lambda_auth_value = "{任意の値。API Gatewayの認証用}"
 sns_target = "{アラーム検知時の通知先。メールアドレス}"
+slack_webhook_url = "{パスワード変更可否を送る管理者向けチャンネル}"
 # 以下は変えたい場合のみ。デフォルトは900秒に100回API GatewayにリクエストがあればDDoSと判断
 # alarm_period = "{デフォルト900秒。アラーム計測間隔}"
 # alarm_threshold = "{デフォルト100。API Gatewayリクエスト数のアラーム閾値}"

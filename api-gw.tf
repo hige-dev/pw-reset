@@ -8,8 +8,7 @@ resource "aws_apigatewayv2_route" "pw_reset" {
     api_id = aws_apigatewayv2_api.pw_reset.id
     route_key = "POST /pw-reset"
     target = "integrations/${aws_apigatewayv2_integration.pw_reset.id}"
-    authorizer_id = aws_apigatewayv2_authorizer.pw_reset.id
-    authorization_type = "CUSTOM"
+    authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_integration" "pw_reset" {
@@ -21,23 +20,10 @@ resource "aws_apigatewayv2_integration" "pw_reset" {
     payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_authorizer" "pw_reset" {
-    api_id = aws_apigatewayv2_api.pw_reset.id
-    authorizer_payload_format_version = "2.0"
-    enable_simple_responses = true
-    authorizer_uri = aws_lambda_function.pw_reset.invoke_arn
-    authorizer_type = "REQUEST"
-    identity_sources = [
-        "$request.header.Authorization"
-    ]
-    name = "pw-reset-auth"
-}
-
 resource "aws_apigatewayv2_stage" "pw_reset" {
     name = "$default"
     stage_variables = {}
     api_id = aws_apigatewayv2_api.pw_reset.id
-    # deployment_id = aws_apigatewayv2_deployment.pw_reset.id
     default_route_settings {
         detailed_metrics_enabled = false
         throttling_rate_limit  = 3
@@ -51,4 +37,39 @@ resource "aws_apigatewayv2_deployment" "pw_reset" {
     api_id = aws_apigatewayv2_api.pw_reset.id
     description = "Automatic deployment triggered by changes to the Api configuration"
     depends_on = [aws_apigatewayv2_route.pw_reset]
+}
+
+resource "aws_apigatewayv2_route" "slack_workflow" {
+    api_id = aws_apigatewayv2_api.pw_reset.id
+    route_key = "POST /slack-workflow"
+    target = "integrations/${aws_apigatewayv2_integration.slack_workflow.id}"
+    authorizer_id = aws_apigatewayv2_authorizer.slack_workflow.id
+    authorization_type = "CUSTOM"
+}
+
+resource "aws_apigatewayv2_integration" "slack_workflow" {
+    api_id           = aws_apigatewayv2_api.pw_reset.id
+    connection_type  = "INTERNET"
+    integration_method = "POST"
+    integration_uri  = aws_lambda_function.slack_workflow.arn
+    integration_type = "AWS_PROXY"
+    payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_authorizer" "slack_workflow" {
+    api_id = aws_apigatewayv2_api.pw_reset.id
+    authorizer_payload_format_version = "2.0"
+    enable_simple_responses = true
+    authorizer_uri = aws_lambda_function.slack_workflow.invoke_arn
+    authorizer_type = "REQUEST"
+    identity_sources = [
+        "$request.header.Authorization"
+    ]
+    name = "pw-reset-auth"
+}
+
+resource "aws_apigatewayv2_deployment" "slack_workflow" {
+    api_id = aws_apigatewayv2_api.pw_reset.id
+    description = "Automatic deployment triggered by changes to the Api configuration"
+    depends_on = [aws_apigatewayv2_route.slack_workflow]
 }
