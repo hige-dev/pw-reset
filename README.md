@@ -61,3 +61,39 @@ $ terraform state show aws_apigatewayv2_api.pw_reset | grep '^\s*api_endpoint'
 パスワードリセットの承認可否をチャンネルに投稿するためのwebhookを作る
 
 ボタンが押された際にリクエストを投げるAPI GWのendpointの設定も必要
+
+## シーケンス図
+```mermaid
+sequenceDiagram
+  autonumber
+  actor line_2 as 依頼者
+  participant line_1 as form
+  participant line_3 as API Gateway
+  participant line_4 as S3署名付URL
+  participant line_5 as Lambda
+  participant line_6 as Slack
+  actor line_7 as admin
+  participant line_10 as IAM
+  participant line_11 as Parameter Store
+  line_2 ->> line_1: 入力
+  line_1 ->> line_2: URLをメールで送信
+  line_1 ->> line_6: CC: Slack
+  line_6 ->> line_7: 通知
+  line_2 ->> line_3: GET /gen-url
+  line_3 ->> line_4: URL発行リクエスト
+  line_4 ->> line_2: URL返す
+  line_2 ->> line_4: リダイレクト
+  line_2 ->> line_4: フォーム送信
+  line_4 ->> line_3: POST /slack-workflow
+  line_3 ->> line_5: slack-workflow実行
+  line_5 ->> line_11: token保存
+  line_5 ->> line_6: 承認可否投稿
+  line_6 ->> line_7: 通知
+  line_7 ->> line_6: 承認 or 否認
+  line_6 ->> line_3: POST /pw-reset
+  line_3 ->> line_5: pw-reset実行
+  line_5 ->> line_11: token検証
+  line_5 ->> line_10: 承認の場合のみ<br>パスワードリセット
+  line_5 ->> line_11: token削除
+  line_2 ->> line_10: 固定一時パスワードでログインしパスワード変更
+```
