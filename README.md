@@ -62,7 +62,7 @@ $ terraform state show aws_apigatewayv2_api.pw_reset | grep '^\s*api_endpoint'
 
 ボタンが押された際にリクエストを投げるAPI GWのendpointの設定も必要
 
-## シーケンス図
+## [WIP] シーケンス図
 ```mermaid
 sequenceDiagram
   autonumber
@@ -92,8 +92,9 @@ sequenceDiagram
   line_5 ->> line_6: 承認可否投稿
   line_6 ->> line_7: 通知B
   line_7 ->> line_6: 通知Aと内容が同じことを確認し<br>承認 or 否認
-  line_6 ->> line_3: 承認の場合<br>POST /pw-reset
+  line_6 ->> line_3: POST /pw-reset
   line_3 ->> line_5: pw-reset実行
+  line_5 ->> line_5: 承認チェック
   line_5 ->> line_11: token検証
   line_5 ->> line_10: パスワードリセット
   line_5 ->> line_11: token削除
