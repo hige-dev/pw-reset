@@ -7,52 +7,44 @@ from botocore.exceptions import ClientError
 
 
 def lambda_handler(event, context):
-    # Slackからのリクエストデータをパース
+    try:
+        body = parse_body(event)
+        print(f'body: {body}')
+        print(f'context: {context}')
+
+        params = body.get('params')
+        user = params.get('user')
+        if body.get('action') == 'approve':
+            if is_valid_token(params.get('token'), user):
+                create_login_profile(user)
+                delete_parameter(user)
+            else:
+                raise Exception('invalid token')
+    except Exception as e:
+        delete_parameter(user)
+        raise e
+
+
+def parse_body(event):
     body = json.loads(
             parse_qs(base64.b64decode(event["body"]).decode("utf-8"))["payload"][0]
     )
     # 承認または拒否のアクションを取得
-    result = json.loads(body['actions'][0]['value'])
-    print('body:', body)
-    if result.get('action') == 'approve':
-        params = result.get('params')
-        KEY = check_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
-        ssm = SsmParameter()
-        token = ssm.get_parameter(KEY)
-        # イベントとコンテキストの内容を出力
-        if params.get('token') == token:
-            resp = create_login_profile(params.get('user'))
-            ssm.delete_parameter(KEY)
-            return resp
-        else:
-            ssm.delete_parameter(KEY)
-            return {
-                'statuscode': 200,
-                'body': '不正なトークンです'
-            }
-    else:
-        # 拒否の場合
-        ssm = SsmParameter()
-        KEY = "PW_RESET_TOKEN_FOR_LAMBDA"
-        ssm.delete_parameter(KEY)
-        return {
-            'statusCode': 200,
-            'body': 'リクエストが拒否されました'
-        }
+    return json.loads(body['actions'][0]['value'])
 
 
-def check_key(key, user):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    now_ymd = now.strftime('%Y%m%d')
-    new_key = f'{key}-{now_ymd}-{user}'
-    return new_key
+def is_valid_token(response_token, user):
+    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
+    ssm = SsmParameter()
+    registered_token = ssm.get_parameter(KEY)
+    check_token = (response_token == registered_token)
+    return check_token
 
 
 def create_login_profile(user):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    now_ymd_h = now.strftime('%Y%m%d%H')
+    for_passwd = True
+    now_ymd_h = now_str(for_passwd)
+
     iam_client = boto3.client('iam')
     try:
         iam_client.get_user(UserName=user)
@@ -81,6 +73,30 @@ def create_login_profile(user):
                 'statusCode': 200,
                 'body': 'エラーが発生しました。/aws/lambda/pw-resetのログを確認してください'
             }
+
+
+def delete_parameter(user):
+    ssm = SsmParameter()
+    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
+    ssm.delete_parameter(KEY)
+
+
+def now_str(for_passwd=False):
+    JST = timezone(timedelta(hours=+9), 'JST')
+    now = datetime.now(JST)
+    if for_passwd:
+        # 一時パスワード用。1時間に1回は更新できるようにする
+        now_string = now.strftime('%Y%m%d%H')
+    else:
+        # ParameterStore用。フォーム送信と承認で時間まで揃えるのは難しそうなので、同日なら許容
+        now_string = now.strftime('%Y%m%d')
+    return now_string
+
+
+def generate_key(key, user):
+    now_ymd = now_str()
+    new_key = f'{key}-{now_ymd}-{user}'
+    return new_key
 
 
 class SsmParameter:
