@@ -23,7 +23,7 @@ def lambda_handler(event, context):
         params = json.loads(strBody)
 
         # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
-        KEY = make_key_unique("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
+        KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
         params['token'] = ssm.save_token_to_parameter_store(KEY)
         print(params)
         txt = 'パスワードリセット依頼が届きました。承認しますか？\n'\
@@ -76,7 +76,7 @@ def lambda_handler(event, context):
         raise e
 
 
-def make_key_unique(key, user):
+def generate_key(key, user):
     JST = timezone(timedelta(hours=+9), 'JST')
     now = datetime.now(JST)
     now_ymd = now.strftime('%Y%m%d')
@@ -133,6 +133,6 @@ class SsmParameter:
             Name=param_key,
             Value=token,
             Type='SecureString',
-            Overwrite=False,
+            # Overwrite=False,
         )
         return token
