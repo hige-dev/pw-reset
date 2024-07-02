@@ -3,77 +3,38 @@ import base64
 import json
 import urllib.request
 import boto3
-from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 import authorization
 
 
 def lambda_handler(event, context):
-    try:
-        api = authorization.ApiGatewayV2Authorization(event)
-        auth = api.authorizer()
-        if auth:
-            return auth
+    api = authorization.ApiGatewayV2Authorization(event)
+    auth = api.authorizer()
+    if auth:
+        return auth
 
-        ssm = SsmParameter()
+    # GoogleFormからデータを取り出し
+    strBody = base64.b64decode(event.get('body')).decode()
+    params = json.loads(strBody)
 
-        webhook_url = os.environ['SLACK_WEBHOOK_URL']
+    # tokenをParameterStoreに保存
+    # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
+    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
+    ssm = SsmParameter()
+    params['token'] = ssm.save_token_to_parameter_store(KEY)
+    print(params)
 
-        strBody = base64.b64decode(event.get('body')).decode()
-        params = json.loads(strBody)
-
-        # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
-        KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
-        params['token'] = ssm.save_token_to_parameter_store(KEY)
-        print(params)
-        txt = 'パスワードリセット依頼が届きました。承認しますか？\n'\
-              '```\n'\
-              f'依頼者: {params.get("email")}\n'\
-              f'リセット対象ユーザー名: {params.get("user")}\n'\
-              '```'
-        message = {
-            "text": txt,
-            "attachments": [
-                {
-                    "text": "承認または拒否を選択してください。\n※処理時間の関係上、「何らかのエラーが発生しました。もう一度お試しください。」と表示されますが問題ありません",
-                    "fallback": "You are unable to choose",
-                    "callback_id": "approval_request",
-                    "color": "#3AA3E3",
-                    "attachment_type": "default",
-                    "actions": [
-                        {
-                            "name": "approve",
-                            "text": "承認",
-                            "type": "button",
-                            "value": json.dumps({
-                                "action": "approve",
-                                "params": params
-                            })
-                        },
-                        {
-                            "name": "reject",
-                            "text": "拒否",
-                            "type": "button",
-                            "value": json.dumps({
-                                "action": "reject",
-                                "params": ""
-                            })
-                        }
-                    ]
-                }
-            ]
-        }
-        request_post = urllib.request.Request(
-            webhook_url,
-            data=json.dumps(message).encode(),
-            headers={'Content-Type': 'application/json'}
-        )
-        with urllib.request.urlopen(request_post) as resp:
-            body = resp.read().decode()
-        print('slack response: ', body)
-    except ClientError as e:
-        print('あばばば')
-        raise e
+    # slackに承認可否を投稿
+    message = create_post_message(params)
+    webhook_url = os.environ['SLACK_WEBHOOK_URL']
+    request_post = urllib.request.Request(
+        webhook_url,
+        data=json.dumps(message).encode(),
+        headers={'Content-Type': 'application/json'}
+    )
+    with urllib.request.urlopen(request_post) as resp:
+        body = resp.read().decode()
+    print('slack response: ', body)
 
 
 def generate_key(key, user):
@@ -111,6 +72,48 @@ def generate_secure_password(length=20):
     random.shuffle(password)
     # リストを文字列に変換して返す
     return ''.join(password)
+
+
+def create_post_message(params):
+    txt = 'パスワードリセット依頼が届きました。承認しますか？\n'\
+          '```\n'\
+          f'依頼者: {params.get("email")}\n'\
+          f'リセット対象ユーザー名: {params.get("user")}\n'\
+          f'確認用token: {params.get("token")}\n\n'\
+          '※ 事前にメールアドレスに送られたtokenと一致することを必ず確認してください'\
+          '```'
+    return {
+        "text": txt,
+        "attachments": [
+            {
+                "text": "承認または拒否を選択してください",
+                "fallback": "You are unable to choose",
+                "callback_id": "approval_request",
+                "color": "#3AA3E3",
+                "attachment_type": "default",
+                "actions": [
+                    {
+                        "name": "approve",
+                        "text": "承認",
+                        "type": "button",
+                        "value": json.dumps({
+                            "action": "approve",
+                            "params": params
+                        })
+                    },
+                    {
+                        "name": "reject",
+                        "text": "拒否",
+                        "type": "button",
+                        "value": json.dumps({
+                            "action": "reject",
+                            "params": ""
+                        })
+                    }
+                ]
+            }
+        ]
+    }
 
 
 class SsmParameter:
