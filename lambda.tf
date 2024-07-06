@@ -10,7 +10,7 @@ resource "aws_lambda_function" "pw_reset" {
     role             = aws_iam_role.pw_reset.arn
     handler          = "lambda_function.lambda_handler"
     runtime          = "python3.12"
-    memory_size      = 128
+    memory_size      = 256
     timeout          = 30
     source_code_hash = data.archive_file.pw_reset.output_base64sha256
     environment {
@@ -53,6 +53,7 @@ resource "aws_lambda_function" "slack_workflow" {
             "AUTH_VALUE" = var.lambda_auth_value,
             "SLACK_WEBHOOK_URL" = var.slack_webhook_url
             "TZ" = "Asia/Tokyo"
+            "VALID_DOMAINS" = var.valid_domains
         }
     }
 }

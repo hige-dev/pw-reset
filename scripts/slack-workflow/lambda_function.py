@@ -17,11 +17,14 @@ def lambda_handler(event, context):
     strBody = base64.b64decode(event.get('body')).decode()
     params = json.loads(strBody)
 
+    check_mail_domain(params.get('email'))
+
     # tokenをParameterStoreに保存
     # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
+    user = params.get('user')
+    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
     ssm = SsmParameter()
-    params['token'] = ssm.save_token_to_parameter_store(KEY)
+    params['token_for_pw_reset'] = ssm.save_token_to_parameter_store(KEY, user)
     print(params)
 
     # slackに承認可否を投稿
@@ -37,15 +40,21 @@ def lambda_handler(event, context):
     print('slack response: ', body)
 
 
+def check_mail_domain(email):
+    valid_domains = os.getenv('VALID_DOMAINS')
+    if email.split('@')[-1] not in valid_domains:
+        raise ValueError('invalid email')
+
+
 def generate_key(key, user):
     JST = timezone(timedelta(hours=+9), 'JST')
     now = datetime.now(JST)
     now_ymd = now.strftime('%Y%m%d')
-    new_key = f'{key}-{now_ymd}-{user}'
+    new_key = f'/{key}/{user}/{now_ymd}'
     return new_key
 
 
-def generate_secure_password(length=20):
+def generate_token_for_pw_reset(length=20):
     import string
     import random
     import secrets
@@ -56,7 +65,7 @@ def generate_secure_password(length=20):
     alphabet_lower = string.ascii_lowercase
     alphabet_upper = string.ascii_uppercase
     digits = string.digits
-    special_chars = '!#$%&()*+,-./:;=?@^_`{|}~'
+    special_chars = '!#$%*+,-./:;=?@^_|~'
     # 全てのキャラクターセットを一つにまとめる
     all_chars = alphabet_lower + alphabet_upper + digits + special_chars
     # 必ず含めるべき文字をリスト化
@@ -79,7 +88,7 @@ def create_post_message(params):
           '```\n'\
           f'依頼者: {params.get("email")}\n'\
           f'リセット対象ユーザー名: {params.get("user")}\n'\
-          f'確認用token: {params.get("token")}\n\n'\
+          f'確認用token: {params.get("gform_token")}\n\n'\
           '※ 事前にメールアドレスに送られたtokenと一致することを必ず確認してください'\
           '```'
     return {
@@ -107,7 +116,7 @@ def create_post_message(params):
                         "type": "button",
                         "value": json.dumps({
                             "action": "reject",
-                            "params": ""
+                            "params": params
                         })
                     }
                 ]
@@ -127,15 +136,21 @@ class SsmParameter:
         )
         return response['Parameter']['Value']
 
-    def delete_parameter(self, param_key):
-        self.client.delete_parameter(Name=param_key)
+    def delete_parameter(self, param_key, user):
+        parameters = self.client.get_parameters_by_path(
+            Path=f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}/'
+        )['Parameters']
+        if parameters:
+            parameter_names = [p.get('Name') for p in parameters]
+            self.client.delete_parameters(Names=parameter_names)
 
-    def save_token_to_parameter_store(self, param_key):
-        token = generate_secure_password()
+    def save_token_to_parameter_store(self, param_key, user):
+        self.delete_parameter(param_key, user)
+        token = generate_token_for_pw_reset()
         self.client.put_parameter(
             Name=param_key,
             Value=token,
             Type='SecureString',
-            # Overwrite=False,
+            Overwrite=True,
         )
         return token

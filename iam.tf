@@ -66,7 +66,8 @@ resource "aws_iam_policy" "parameter_store_for_pw_reset" {
                 "Action": [
                     "ssm:PutParameter",
                     "ssm:DeleteParameter",
-                    "ssm:GetParameter"
+                    "ssm:GetParameter",
+                    "ssm:GetParametersByPath"
                 ],
                 "Resource": "arn:aws:ssm:${var.region}:${var.account_id}:parameter/PW_RESET_TOKEN_FOR_LAMBDA*"
             }
