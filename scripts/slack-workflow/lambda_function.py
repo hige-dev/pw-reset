@@ -20,7 +20,7 @@ def lambda_handler(event, context):
     check_mail_domain(params.get('email'))
 
     # tokenをParameterStoreに保存
-    # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
+    # ex) KEY: /PW_RESET_TOKEN_FOR_LAMBDA/{username}/20240101
     user = params.get('user')
     KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
     ssm = SsmParameter()
@@ -29,6 +29,10 @@ def lambda_handler(event, context):
 
     # slackに承認可否を投稿
     message = create_post_message(params)
+    post_slack(message)
+
+
+def post_slack(message):
     webhook_url = os.environ['SLACK_WEBHOOK_URL']
     request_post = urllib.request.Request(
         webhook_url,
@@ -36,14 +40,17 @@ def lambda_handler(event, context):
         headers={'Content-Type': 'application/json'}
     )
     with urllib.request.urlopen(request_post) as resp:
-        body = resp.read().decode()
-    print('slack response: ', body)
+        resp.read().decode()
 
 
 def check_mail_domain(email):
     valid_domains = os.getenv('VALID_DOMAINS')
     if email.split('@')[-1] not in valid_domains:
-        raise ValueError('invalid email')
+        message = {
+            'statusCode': 200,
+            'body': f'{email}は許可されたメールドメインではありません'
+        }
+        post_slack(message)
 
 
 def generate_key(key, user):
