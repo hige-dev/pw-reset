@@ -47,8 +47,7 @@ def check_mail_domain(email):
     valid_domains = os.getenv('VALID_DOMAINS')
     if email.split('@')[-1] not in valid_domains:
         message = {
-            'statusCode': 200,
-            'body': f'{email}は許可されたメールドメインではありません'
+            'text': f'{email}は許可されたメールドメインではありません'
         }
         post_slack(message)
 

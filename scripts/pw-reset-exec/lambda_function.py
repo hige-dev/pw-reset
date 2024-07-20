@@ -1,5 +1,7 @@
 import boto3
 import json
+import os
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from botocore.exceptions import ClientError
 
@@ -10,14 +12,11 @@ def lambda_handler(event, context):
     user = params.get('user')
     if is_valid_token(params.get('token_for_pw_reset'), user):
         create_login_profile(user)
-        delete_parameter(user)
+        message = 'パスワードリセットが完了しました'
     else:
-        delete_parameter(user)
-        raise ClientError('invalid token')
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Hello from Lambda!')
-    }
+        message = '不正なtokenです'
+    delete_parameter(user)
+    post_slack(message)
 
 
 def create_login_profile(user):
@@ -29,10 +28,8 @@ def create_login_profile(user):
         iam_client.get_user(UserName=user)
     except ClientError:
         print(f'[ERROR] user: {user} is not exists.')
-        return {
-            'statusCode': 200,
-            'body': 'ユーザーが見つかりませんでした'
-        }
+        message = f'ユーザー; {user} が見つかりませんでした'
+        post_slack(message)
     try:
         iam_client.update_login_profile(
             UserName=user,
@@ -48,10 +45,22 @@ def create_login_profile(user):
             )
         else:
             print(e.response)
-            return {
-                'statusCode': 200,
-                'body': 'エラーが発生しました。/aws/lambda/pw-resetのログを確認してください'
-            }
+            message = f'{e.response['Error']['Code']} が発生しました。/aws/lambda/pw-resetのログを確認してください'
+            post_slack(message)
+
+
+def post_slack(message):
+    message = {
+        'text': message
+    }
+    webhook_url = os.environ['slack_webhook_url']
+    request_post = urllib.request.request(
+        webhook_url,
+        data=json.dumps(message).encode(),
+        headers={'content-type': 'application/json'}
+    )
+    with urllib.request.urlopen(request_post) as resp:
+        resp.read().decode()
 
 
 def now_str(for_passwd=False):
