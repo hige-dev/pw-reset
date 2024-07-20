@@ -3,7 +3,8 @@ resource "aws_cloudwatch_metric_alarm" "pw_reset" {
     alarm_description   = "API Gateway received ${var.alarm_threshold} requests in ${var.alarm_period} seconds, possible DDoS."
     actions_enabled     = true
     alarm_actions       = [
-                              aws_sns_topic.pw_reset.arn
+                                aws_sns_topic.pw_reset.arn,
+                                aws_lambda_function.close_apigw.arn
                           ]
     metric_name         = "Count"
     namespace           = "AWS/ApiGateway"
@@ -15,5 +16,8 @@ resource "aws_cloudwatch_metric_alarm" "pw_reset" {
     threshold           = var.alarm_threshold
     comparison_operator = "GreaterThanOrEqualToThreshold"
     treat_missing_data  = "missing"
-    depends_on          = [aws_sns_topic.pw_reset]
+    depends_on          = [
+                                aws_sns_topic.pw_reset,
+                                aws_lambda_function.close_apigw
+                          ]
 }
