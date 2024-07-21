@@ -3,7 +3,6 @@ import base64
 import json
 import urllib.request
 import boto3
-from datetime import datetime, timedelta, timezone
 import authorization
 
 
@@ -17,14 +16,21 @@ def lambda_handler(event, context):
     strBody = base64.b64decode(event.get('body')).decode()
     params = json.loads(strBody)
 
-    check_mail_domain(params.get('email'))
+    user = params.get('user')
+    KEY = f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}'
+    ssm = SsmParameter()
+    email = params.get('email')
+    try:
+        check_mail_domain(email)
+    except Exception:
+        message = f'{email}は許可されたメールドメインではありません'
+        post_slack(message)
+        ssm.delete_parameter(user)
+        return
 
     # tokenをParameterStoreに保存
     # ex) KEY: /PW_RESET_TOKEN_FOR_LAMBDA/{username}/20240101
-    user = params.get('user')
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
-    ssm = SsmParameter()
-    params['token_for_pw_reset'] = ssm.save_token_to_parameter_store(KEY, user)
+    params['token_for_pw_reset'] = ssm.save_token_to_parameter_store(KEY)
     print(params)
 
     # slackに承認可否を投稿
@@ -46,18 +52,7 @@ def post_slack(message):
 def check_mail_domain(email):
     valid_domains = os.getenv('VALID_DOMAINS')
     if email.split('@')[-1] not in valid_domains:
-        message = {
-            'text': f'{email}は許可されたメールドメインではありません'
-        }
-        post_slack(message)
-
-
-def generate_key(key, user):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    now_ymd = now.strftime('%Y%m%d')
-    new_key = f'/{key}/{user}/{now_ymd}'
-    return new_key
+        raise Exception('invalid email')
 
 
 def generate_token_for_pw_reset(length=20):
@@ -135,23 +130,7 @@ class SsmParameter:
     def __init__(self):
         self.client = boto3.client('ssm')
 
-    def get_parameter(self, param_key):
-        response = self.client.get_parameter(
-            Name=param_key,
-            WithDecryption=True
-        )
-        return response['Parameter']['Value']
-
-    def delete_parameter(self, param_key, user):
-        parameters = self.client.get_parameters_by_path(
-            Path=f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}/'
-        )['Parameters']
-        if parameters:
-            parameter_names = [p.get('Name') for p in parameters]
-            self.client.delete_parameters(Names=parameter_names)
-
-    def save_token_to_parameter_store(self, param_key, user):
-        self.delete_parameter(param_key, user)
+    def save_token_to_parameter_store(self, param_key):
         token = generate_token_for_pw_reset()
         self.client.put_parameter(
             Name=param_key,

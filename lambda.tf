@@ -57,6 +57,7 @@ resource "aws_lambda_function" "pw_reset_exec" {
         variables = {
             "TZ" = "Asia/Tokyo"
             "SLACK_WEBHOOK_URL" = var.slack_webhook_url
+            "SLACK_WEBHOOK_FOR_USER_URL" = var.slack_webhook_for_user_url
         }
     }
 }

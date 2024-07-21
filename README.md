@@ -5,14 +5,6 @@
 GoogleフォームにユーザーIDを入力して送信すると、API Gatewayが受け取ってLambdaを実行する<br>
 Lambdaでは、対象ユーザーのパスワードをリセットし、一時パスワードを発行する
 
-共通一次パスワード：`"U{ユーザー名}_{date +%Y%m%d%H}"`
-ex) "Uhoge_2024010113"
-
-### 注意点
-- 先頭は大文字の`U`。パスワードに大文字・小文字のルールがある場合の対応
-- 過去のパスワードを使いまわしできない場合、デフォルトでは1時間に1回しか更新できない。かも
-  - 動的なパスワードを利用者側で把握するための苦肉の策。分まで設定したらシビアかな、と
-
 ## 事前準備
 1. tfstateを保存するバケットを作成
 2. terraform実行用の環境変数を設定
@@ -22,7 +14,8 @@ cat <<EOS > terraform.tfvars
 account_id = {AWSのアカウントID}
 lambda_auth_value = "{任意の値。API Gatewayの認証用}"
 sns_target = "{アラーム検知時の通知先。メールアドレス}"
-slack_webhook_url = "{パスワード変更可否を送る管理者向けチャンネル}"
+slack_webhook_url = "{パスワード変更可否を送る管理者向けチャンネルwebhook}"
+slack_webhook_for_user_url = "{パスワード完了を通知する、依頼者が所属するチャンネルwebhook}"
 valid_domains = "{許可するメールドメイン。外部からのリクエスト拒否用}"
 # 以下は変えたい場合のみ。デフォルトは900秒に100回API GatewayにリクエストがあればDDoSと判断
 # alarm_period = "{デフォルト900秒。アラーム計測間隔}"
@@ -78,7 +71,7 @@ sequenceDiagram
   line_2 ->> line_1: リセット対象ID入力
   line_1 ->> line_7: 通知A（メールアドレス宛）<br>依頼者メールアドレス、リセット対象ID、トークンA(gform_token)
   line_1 ->> line_3: POST /slack-workflow
-  line_1 ->> line_2: 受付完了メール
+  line_1 ->> line_2: 受付完了メール<br>(一時パスワード発行)
   line_3 ->> line_5: Lambda認証・<br>slack-workflow実行
   line_5 ->> line_5: 認証チェック
   line_5 ->> line_11: トークンB(token_for_pw_reset)発行・保存
@@ -92,6 +85,6 @@ sequenceDiagram
   line_5 ->> line_10: パスワードリセット
   line_5 ->> line_11: tokenB削除
   line_5 ->> line_6: 処理完了通知
-  line_6 ->> line_2: 【WIP】通知<br>（したいがいい方法が思いつかない）
+  line_6 ->> line_2: 通知
   line_2 ->> line_10: 一時パスワードでログインしパスワード変更
 ```

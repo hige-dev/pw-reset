@@ -2,7 +2,6 @@ import json
 import base64
 import boto3
 from urllib.parse import parse_qs
-from datetime import datetime, timedelta, timezone
 import asyncio
 
 
@@ -45,7 +44,6 @@ def create_message(params, is_approved=True):
 
 
 def parse_body(event):
-    print('parse body')
     body = json.loads(
         parse_qs(base64.b64decode(event["body"]).decode("utf-8"))["payload"][0]
     )
@@ -57,13 +55,11 @@ def parse_body(event):
 async def invoke_pw_reset_exec(params):
     print('invoke reset exec')
     asyncio.create_task(create_login_profile(params))
-    print('asd')
 
 
 async def create_login_profile(params):
     print('create login profile')
     client = boto3.client('lambda')
-    print('after init boto3')
     data = json.dumps({"params": params})
     client.invoke(
         FunctionName='pw-reset-exec',
@@ -72,19 +68,6 @@ async def create_login_profile(params):
     )
 
 
-def now_str(for_passwd=False):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    if for_passwd:
-        # 一時パスワード用。1時間に1回は更新できるようにする
-        now_string = now.strftime('%Y%m%d%H')
-    else:
-        # ParameterStore用。フォーム送信と承認で時間まで揃えるのは難しそうなので、同日なら許容
-        now_string = now.strftime('%Y%m%d')
-    return now_string
-
-
 def generate_key(key, user):
-    now_ymd = now_str()
-    new_key = f'/{key}/{user}/{now_ymd}'
+    new_key = f'/{key}/{user}'
     return new_key

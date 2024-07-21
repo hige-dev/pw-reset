@@ -2,7 +2,6 @@ import boto3
 import json
 import os
 import urllib.request
-from datetime import datetime, timedelta, timezone
 from botocore.exceptions import ClientError
 
 
@@ -10,51 +9,56 @@ def lambda_handler(event, context):
     print(event)
     params = event.get('params')
     user = params.get('user')
-    if is_valid_token(params.get('token_for_pw_reset'), user):
-        create_login_profile(user)
-        message = 'パスワードリセットが完了しました'
+    key = f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}'
+    if is_valid_token(params.get('token_for_pw_reset'), key):
+        create_login_profile(params)
+        message = f'[INFO] {user}のパスワードリセットが完了しました。メールに送信されたパスワードでログインしてください'
+        for_admin = False
+        post_slack(message, for_admin)
     else:
-        message = '不正なtokenです'
-    delete_parameter(user)
-    post_slack(message)
+        message = f'[ERROR] 不正なtokenです(token: `{params.get("gform_token")}`)'
+        post_slack(message)
+    delete_parameter(key)
 
 
-def create_login_profile(user):
-    for_passwd = True
-    now_ymd_h = now_str(for_passwd)
-
+def create_login_profile(params):
+    user = params.get('user')
+    token = params.get('gform_token')
+    password = params.get('tmp_password')
     iam_client = boto3.client('iam')
     try:
         iam_client.get_user(UserName=user)
     except ClientError:
         print(f'[ERROR] user: {user} is not exists.')
-        message = f'ユーザー; {user} が見つかりませんでした'
+        message = f'[ERROR] ユーザー: {user} が見つかりませんでした(token: `{token}`)'
         post_slack(message)
+        return
     try:
         iam_client.update_login_profile(
             UserName=user,
-            Password=f'U{user}_{now_ymd_h}',
+            Password=password,
             PasswordResetRequired=True
         )
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchEntity':
             iam_client.create_login_profile(
                 UserName=user,
-                Password=f'U{user}_{now_ymd_h}',
+                Password=password,
                 PasswordResetRequired=True
             )
         else:
             print(e.response)
-            message = f'{e.response['Error']['Code']} が発生しました。/aws/lambda/pw-resetのログを確認してください'
+            message = f'[ERROR] {e.response['Error']['Code']} が発生しました。' \
+                      f'/aws/lambda/pw-resetのログを確認してください(token: `{token}`)'
             post_slack(message)
 
 
-def post_slack(message):
+def post_slack(message, for_admin=True):
     message = {
         'text': message
     }
-    webhook_url = os.environ['slack_webhook_url']
-    request_post = urllib.request.request(
+    webhook_url = os.environ['SLACK_WEBHOOK_URL'] if for_admin else os.environ['SLACK_WEBHOOK_FOR_USER_URL']
+    request_post = urllib.request.Request(
         webhook_url,
         data=json.dumps(message).encode(),
         headers={'content-type': 'application/json'}
@@ -63,38 +67,18 @@ def post_slack(message):
         resp.read().decode()
 
 
-def now_str(for_passwd=False):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    if for_passwd:
-        # 一時パスワード用。1時間に1回は更新できるようにする
-        now_string = now.strftime('%Y%m%d%H')
-    else:
-        # ParameterStore用。フォーム送信と承認で時間まで揃えるのは難しそうなので、同日なら許容
-        now_string = now.strftime('%Y%m%d')
-    return now_string
-
-
-def generate_key(key, user):
-    now_ymd = now_str()
-    new_key = f'/{key}/{user}/{now_ymd}'
-    return new_key
-
-
-def delete_parameter(user):
+def delete_parameter(key):
     ssm = SsmParameter()
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
-    ssm.delete_parameter(KEY)
+    ssm.delete_parameter(key)
 
 
-def is_valid_token(incoming_token, user):
-    print('is valid token')
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
+def is_valid_token(incoming_token, key):
     ssm = SsmParameter()
-    registered_token = ssm.get_parameter(KEY)
+    registered_token = ssm.get_parameter(key)
     check_token = (incoming_token == registered_token)
-    print(f'incoming: {incoming_token}')
-    print(f'registerd: {registered_token}')
+    print(f'[INFO] incoming: {incoming_token}')
+    print(f'[INFO] registerd: {registered_token}')
+    print(f'[INFO] check token result: {check_token}')
     return check_token
 
 
