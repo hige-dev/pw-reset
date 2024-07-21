@@ -3,11 +3,12 @@
 ![](./flow.drawio.svg)
 
 GoogleフォームにユーザーIDを入力して送信すると、API Gatewayが受け取ってLambdaを実行する<br>
-Lambdaでは、対象ユーザーのパスワードをリセットし、一時パスワードを発行する
+Lambdaでは、対象ユーザーのパスワードをリセットする
 
 ## 事前準備
 1. tfstateを保存するバケットを作成
-2. terraform実行用の環境変数を設定
+2. slackのwebhook作成
+3. terraform実行用の環境変数を設定
 
 ```
 cat <<EOS > terraform.tfvars
@@ -22,6 +23,13 @@ valid_domains = "{許可するメールドメイン。外部からのリクエ�
 # alarm_threshold = "{デフォルト100。API Gatewayリクエスト数のアラーム閾値}"
 EOS
 ```
+
+## slack webhook設定
+1. 「Incoming Webhooks」で、以下の2つのwebhookを作成する
+  - パスワードリセットの承認可否をチャンネルに投稿するためのwebhook
+  - パスワードリセットが完了したことを依頼者に通知するためのwebhook
+2. 「Interactivity & Shortcuts」で、承認ボタンが押された際にリクエストを投げるAPI GWのendpointを設定する
+  - ex) Request URL: https://{api_id}.execute-api.ap-northeast-1.amazonaws.com/pw-reset
 
 ## terraform実行
 
@@ -38,11 +46,14 @@ terraform plan
 terraform apply
 ```
 
-
 ## Googleフォーム実行前作業
 1. terraform実行後、アラート通知先のsns_targetにメールが届くので承認
-2. GAS/pw-reset.gsをフォームのスクリプトに設定。フォームの項目名は「ユーザー名」
-3. GASの「スクリプト プロパティ」にAPI_ENDPOINTとAUTH_VALUEを設定
+2. scripts/GAS以下のスクリプトを、Googleフォームのスクリプトに設定。
+  - フォームの項目名は「ユーザー名」
+3. GASの「スクリプト プロパティ」に以下を設定
+  - API_ENDPOINT: 以下参照
+  - AUTH_VALUE: Lambda認証用。slack-workflowの環境変数で設定
+  - ADMIN_EMAILs: 管理者に送信するメール(通知A用)
 
 ```
 # API_ENDPOINTには、以下の「api_endpoint」を入力
@@ -51,12 +62,7 @@ $ terraform state show aws_apigatewayv2_api.pw_reset | grep '^\s*api_endpoint'
     api_endpoint                 = "https://{api_id}.execute-api.ap-northeast-1.amazonaws.com"
 ```
 
-## [WIP] slack webhook設定
-パスワードリセットの承認可否をチャンネルに投稿するためのwebhookを作る
-
-ボタンが押された際にリクエストを投げるAPI GWのendpointの設定も必要
-
-## [WIP] シーケンス図
+## シーケンス図
 ```mermaid
 sequenceDiagram
   autonumber
