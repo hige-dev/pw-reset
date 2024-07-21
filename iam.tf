@@ -5,21 +5,41 @@ resource "aws_iam_policy" "pw_reset" {
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "ManagedByTerraform",
+                "Sid": "logs",
                 "Effect": "Allow",
                 "Action": [
                     "logs:CreateLogGroup",
                     "logs:CreateLogStream",
-                    "logs:PutLogEvents",
+                    "logs:PutLogEvents"
+                ],
+                "Resource": [
+                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}",
+                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}:log-stream:*",
+                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset_exec.name}",
+                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset_exec.name}:log-stream:*"
+                ]
+            },
+            {
+                "Sid": "iam",
+                "Effect": "Allow",
+                "Action": [
                     "iam:UpdateLoginProfile",
                     "iam:CreateLoginProfile",
                     "iam:GetLoginProfile",
                     "iam:GetUser"
                 ],
                 "Resource": [
-                    "arn:aws:iam::${var.account_id}:user/*",
-                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}",
-                    "arn:aws:logs:*:${var.account_id}:log-group:${aws_cloudwatch_log_group.pw_reset.name}:log-stream:*"
+                    "arn:aws:iam::${var.account_id}:user/*"
+                ]
+            },
+            {
+                "Sid": "lambda",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:InvokeFunction"
+                ],
+                "Resource": [
+                    "arn:aws:lambda:ap-northeast-1:${var.account_id}:function:${aws_lambda_function.pw_reset_exec.function_name}"
                 ]
             }
         ]
@@ -66,9 +86,7 @@ resource "aws_iam_policy" "parameter_store_for_pw_reset" {
                 "Action": [
                     "ssm:PutParameter",
                     "ssm:DeleteParameter",
-                    "ssm:DeleteParameters",
-                    "ssm:GetParameter",
-                    "ssm:GetParametersByPath"
+                    "ssm:GetParameter"
                 ],
                 "Resource": "arn:aws:ssm:${var.region}:${var.account_id}:parameter/PW_RESET_TOKEN_FOR_LAMBDA*"
             }

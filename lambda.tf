@@ -32,6 +32,12 @@ resource "aws_cloudwatch_log_group" "pw_reset" {
   retention_in_days = 30
 }
 
+resource "aws_lambda_function_event_invoke_config" "pw_reset" {
+  function_name                = aws_lambda_function.pw_reset.function_name
+  maximum_event_age_in_seconds = 60
+  maximum_retry_attempts       = 0
+}
+
 data "archive_file" "pw_reset_exec" {
     type = "zip"
     source_dir  = "${path.module}/scripts/pw-reset-exec"
@@ -55,9 +61,22 @@ resource "aws_lambda_function" "pw_reset_exec" {
     }
 }
 
+resource "aws_lambda_permission" "pw_reset_exec" {
+    function_name   = aws_lambda_function.pw_reset_exec.function_name
+    principal       = "lambda.amazonaws.com"
+    action          = "lambda:InvokeFunction"
+    source_arn      = aws_lambda_function.pw_reset.arn
+}
+
 resource "aws_cloudwatch_log_group" "pw_reset_exec" {
   name              = "/aws/lambda/pw-reset-exec"
   retention_in_days = 30
+}
+
+resource "aws_lambda_function_event_invoke_config" "pw_reset_exec" {
+  function_name                = aws_lambda_function.pw_reset_exec.function_name
+  maximum_event_age_in_seconds = 60
+  maximum_retry_attempts       = 0
 }
 
 data "archive_file" "slack_workflow" {
@@ -97,6 +116,12 @@ resource "aws_cloudwatch_log_group" "slack_workflow" {
     retention_in_days = 30
 }
 
+resource "aws_lambda_function_event_invoke_config" "slack_workflow" {
+  function_name                = aws_lambda_function.slack_workflow.function_name
+  maximum_event_age_in_seconds = 60
+  maximum_retry_attempts       = 0
+}
+
 data "archive_file" "close_apigw" {
     type = "zip"
     source_dir  = "${path.module}/scripts/close-apigw"
@@ -131,4 +156,10 @@ resource "aws_lambda_permission" "close_apigw" {
 resource "aws_cloudwatch_log_group" "close_apigw" {
   name              = "/aws/lambda/close-apigw"
   retention_in_days = 30
+}
+
+resource "aws_lambda_function_event_invoke_config" "close_apigw" {
+  function_name                = aws_lambda_function.close_apigw.function_name
+  maximum_event_age_in_seconds = 60
+  maximum_retry_attempts       = 0
 }
