@@ -21,17 +21,23 @@ function postApiGateway(e) {
     }
   });
 
-  let length = 32;
-  let token = generateRandomString(length);
-  let data = {'user': userName, 'email': email, 'gform_token': token };
-  let mailBody = `
+  let token = generateRandomString(32);
+  let password = 'Pw0+' + generateRandomString(12);
+  let data = {'user': userName, 'email': email, 'gform_token': token, 'tmp_password': password };
+  let mailBodyToRequester = `
+管理者の承認後、以下の情報でログインし、パスワードを再設定してください
+ユーザー名: ${userName}
+password: ${password}
+※このメールが送られた時点ではログインできません
+`
+  sendMailToRequester(mailBodyToRequester, email);
+  mailBodyToAdmin = `
 後からslackに届く内容と一致することを確認してください
 ユーザー名: ${userName}
 email: ${email}
 token: ${token}
-  `
-  sendMail(mailBody);
-
+`
+  sendMailToAdmin(mailBodyToAdmin);
   let URL = PropertiesService.getScriptProperties().getProperty("API_ENDPOINT") + "/slack-workflow";
   Logger.log(data)
   let headers = { 'Authorization': PropertiesService.getScriptProperties().getProperty("AUTH_VALUE") };
