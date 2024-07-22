@@ -3,7 +3,6 @@ import base64
 import json
 import urllib.request
 import boto3
-from datetime import datetime, timedelta, timezone
 import authorization
 
 
@@ -17,15 +16,29 @@ def lambda_handler(event, context):
     strBody = base64.b64decode(event.get('body')).decode()
     params = json.loads(strBody)
 
-    # tokenをParameterStoreに保存
-    # ex) KEY: PW_RESET_TOKEN_FOR_LAMBDA-20240101-{username}
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", params.get('user'))
+    user = params.get('user')
+    KEY = f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}'
     ssm = SsmParameter()
-    params['token'] = ssm.save_token_to_parameter_store(KEY)
+    email = params.get('email')
+    try:
+        check_mail_domain(email)
+    except Exception:
+        message = f'{email}は許可されたメールドメインではありません'
+        post_slack(message)
+        ssm.delete_parameter(user)
+        return
+
+    # tokenをParameterStoreに保存
+    # ex) KEY: /PW_RESET_TOKEN_FOR_LAMBDA/{username}/20240101
+    params['token_for_pw_reset'] = ssm.save_token_to_parameter_store(KEY)
     print(params)
 
     # slackに承認可否を投稿
     message = create_post_message(params)
+    post_slack(message)
+
+
+def post_slack(message):
     webhook_url = os.environ['SLACK_WEBHOOK_URL']
     request_post = urllib.request.Request(
         webhook_url,
@@ -33,19 +46,16 @@ def lambda_handler(event, context):
         headers={'Content-Type': 'application/json'}
     )
     with urllib.request.urlopen(request_post) as resp:
-        body = resp.read().decode()
-    print('slack response: ', body)
+        resp.read().decode()
 
 
-def generate_key(key, user):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    now_ymd = now.strftime('%Y%m%d')
-    new_key = f'{key}-{now_ymd}-{user}'
-    return new_key
+def check_mail_domain(email):
+    valid_domains = os.getenv('VALID_DOMAINS')
+    if email.split('@')[-1] not in valid_domains:
+        raise Exception('invalid email')
 
 
-def generate_secure_password(length=20):
+def generate_token_for_pw_reset(length=20):
     import string
     import random
     import secrets
@@ -56,7 +66,7 @@ def generate_secure_password(length=20):
     alphabet_lower = string.ascii_lowercase
     alphabet_upper = string.ascii_uppercase
     digits = string.digits
-    special_chars = '!#$%&()*+,-./:;=?@^_`{|}~'
+    special_chars = '!#$%*+,-./:;=?@^_|~'
     # 全てのキャラクターセットを一つにまとめる
     all_chars = alphabet_lower + alphabet_upper + digits + special_chars
     # 必ず含めるべき文字をリスト化
@@ -79,7 +89,7 @@ def create_post_message(params):
           '```\n'\
           f'依頼者: {params.get("email")}\n'\
           f'リセット対象ユーザー名: {params.get("user")}\n'\
-          f'確認用token: {params.get("token")}\n\n'\
+          f'確認用token: {params.get("gform_token")}\n\n'\
           '※ 事前にメールアドレスに送られたtokenと一致することを必ず確認してください'\
           '```'
     return {
@@ -107,7 +117,7 @@ def create_post_message(params):
                         "type": "button",
                         "value": json.dumps({
                             "action": "reject",
-                            "params": ""
+                            "params": params
                         })
                     }
                 ]
@@ -120,22 +130,12 @@ class SsmParameter:
     def __init__(self):
         self.client = boto3.client('ssm')
 
-    def get_parameter(self, param_key):
-        response = self.client.get_parameter(
-            Name=param_key,
-            WithDecryption=True
-        )
-        return response['Parameter']['Value']
-
-    def delete_parameter(self, param_key):
-        self.client.delete_parameter(Name=param_key)
-
     def save_token_to_parameter_store(self, param_key):
-        token = generate_secure_password()
+        token = generate_token_for_pw_reset()
         self.client.put_parameter(
             Name=param_key,
             Value=token,
             Type='SecureString',
-            # Overwrite=False,
+            Overwrite=True,
         )
         return token

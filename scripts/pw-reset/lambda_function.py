@@ -2,8 +2,7 @@ import json
 import base64
 import boto3
 from urllib.parse import parse_qs
-from datetime import datetime, timedelta, timezone
-from botocore.exceptions import ClientError
+import asyncio
 
 
 def lambda_handler(event, context):
@@ -13,102 +12,62 @@ def lambda_handler(event, context):
         print(f'context: {context}')
 
         params = body.get('params')
-        user = params.get('user')
         if body.get('action') == 'approve':
-            if is_valid_token(params.get('token'), user):
-                create_login_profile(user)
-                delete_parameter(user)
-            else:
-                raise Exception('invalid token')
-    except Exception as e:
-        delete_parameter(user)
-        raise e
+            asyncio.run(invoke_pw_reset_exec(params))
+            message = create_message(params)
+            return {
+                'statusCode': 200,
+                'body': message
+            }
+        else:
+            raise Exception('rejected')
+    except Exception:
+        message = create_message(params, False)
+        return {
+            'statusCode': 200,
+            'body': message
+        }
+
+
+def create_message(params, is_approved=True):
+    result = "承認" if is_approved else "却下"
+    txt = 'パスワードリセット依頼が届きました。承認しますか？\n'\
+        '```\n'\
+        f'依頼者: {params.get("email")}\n'\
+        f'リセット対象ユーザー名: {params.get("user")}\n'\
+        f'確認用token: {params.get("gform_token")}\n\n'\
+        '※ 事前にメールアドレスに送られたtokenと一致することを必ず確認してください'\
+        '```\n'\
+        '↓\n'\
+        f'<@{params.get('button_pusher')}>により、{params.get('user')}のパスワードリセットが{result}されました'
+    return txt
 
 
 def parse_body(event):
     body = json.loads(
-            parse_qs(base64.b64decode(event["body"]).decode("utf-8"))["payload"][0]
+        parse_qs(base64.b64decode(event["body"]).decode("utf-8"))["payload"][0]
     )
-    # 承認または拒否のアクションを取得
-    return json.loads(body['actions'][0]['value'])
+    result = json.loads(body['actions'][0]['value'])
+    result['params']['button_pusher'] = body['user']['id']
+    return result
 
 
-def is_valid_token(response_token, user):
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
-    ssm = SsmParameter()
-    registered_token = ssm.get_parameter(KEY)
-    check_token = (response_token == registered_token)
-    return check_token
+async def invoke_pw_reset_exec(params):
+    print('invoke reset exec')
+    asyncio.create_task(create_login_profile(params))
 
 
-def create_login_profile(user):
-    for_passwd = True
-    now_ymd_h = now_str(for_passwd)
-
-    iam_client = boto3.client('iam')
-    try:
-        iam_client.get_user(UserName=user)
-    except ClientError:
-        print(f'[ERROR] user: {user} is not exists.')
-        return {
-            'statusCode': 200,
-            'body': 'ユーザーが見つかりませんでした'
-        }
-    try:
-        iam_client.update_login_profile(
-            UserName=user,
-            Password=f'U{user}_{now_ymd_h}',
-            PasswordResetRequired=True
-        )
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchEntity':
-            iam_client.create_login_profile(
-                UserName=user,
-                Password=f'U{user}_{now_ymd_h}',
-                PasswordResetRequired=True
-            )
-        else:
-            print(e.response)
-            return {
-                'statusCode': 200,
-                'body': 'エラーが発生しました。/aws/lambda/pw-resetのログを確認してください'
-            }
-
-
-def delete_parameter(user):
-    ssm = SsmParameter()
-    KEY = generate_key("PW_RESET_TOKEN_FOR_LAMBDA", user)
-    ssm.delete_parameter(KEY)
-
-
-def now_str(for_passwd=False):
-    JST = timezone(timedelta(hours=+9), 'JST')
-    now = datetime.now(JST)
-    if for_passwd:
-        # 一時パスワード用。1時間に1回は更新できるようにする
-        now_string = now.strftime('%Y%m%d%H')
-    else:
-        # ParameterStore用。フォーム送信と承認で時間まで揃えるのは難しそうなので、同日なら許容
-        now_string = now.strftime('%Y%m%d')
-    return now_string
+async def create_login_profile(params):
+    print('create login profile')
+    client = boto3.client('lambda')
+    data = json.dumps({"params": params})
+    client.invoke(
+        FunctionName='pw-reset-exec',
+        InvocationType='Event',
+        Payload=data
+    )
 
 
 def generate_key(key, user):
-    now_ymd = now_str()
-    new_key = f'{key}-{now_ymd}-{user}'
+    new_key = f'/{key}/{user}'
     return new_key
-
-
-class SsmParameter:
-    def __init__(self):
-        self.client = boto3.client('ssm')
-
-    def get_parameter(self, param_key):
-        response = self.client.get_parameter(
-            Name=param_key,
-            WithDecryption=True
-        )
-        return response['Parameter']['Value']
-
-    def delete_parameter(self, param_key):
-        self.client.delete_parameter(Name=param_key)
