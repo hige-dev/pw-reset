@@ -12,9 +12,6 @@ def lambda_handler(event, context):
     key = f'/PW_RESET_TOKEN_FOR_LAMBDA/{user}'
     if is_valid_token(params.get('token_for_pw_reset'), key):
         create_login_profile(params)
-        message = f'[INFO] {user}のパスワードリセットが完了しました。メールに送信されたパスワードでログインしてください'
-        for_admin = False
-        post_slack(message, for_admin)
     else:
         message = f'[ERROR] 不正なtokenです(token: `{params.get("gform_token")}`)'
         post_slack(message)
@@ -39,6 +36,9 @@ def create_login_profile(params):
             Password=password,
             PasswordResetRequired=True
         )
+        message = f'[INFO] {user}のパスワードリセットが完了しました。メールに送信されたパスワードでログインしてください'
+        for_admin = False
+        post_slack(message, for_admin)
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchEntity':
             iam_client.create_login_profile(
@@ -46,6 +46,9 @@ def create_login_profile(params):
                 Password=password,
                 PasswordResetRequired=True
             )
+            message = f'[INFO] {user}のパスワードリセットが完了しました。メールに送信されたパスワードでログインしてください'
+            for_admin = False
+            post_slack(message, for_admin)
         else:
             print(e.response)
             message = f'[ERROR] {e.response['Error']['Code']} が発生しました。' \
