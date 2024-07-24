@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Form Button</title>
+    <style>
+        /* CSS for the submit button */
+        .submit-button {
+            display: inline-block;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .submit-button:hover {
+            background-color: #45a049;
+        }
+
+        /* Center the button in the viewport */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+    </style>
+</head>
+
+<body>
+
+    <button class="submit-button" onclick="submitForm()">Submit</button>
+
+    <script>
+        // Function to get query parameters
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        // Function to submit form data
+        function submitForm() {
+            const userName = getQueryParam('user');
+            const email = getQueryParam('email');
+            const token = getQueryParam('gform_token');
+            const password = getQueryParam('tmp_password');
+
+            const formData = {
+                'user': userName,
+                'email': email,
+                'gform_token': token,
+                'tmp_password': password
+            };
+
+            console.log('Submitting:', formData); // For debugging
+
+            // Example URL to send data
+            const submitUrl = 'https://example.com/submit';
+
+            fetch(submitUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                    alert('Form submitted successfully!');
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    alert('Failed to submit form.');
+                });
+        }
+    </script>
+
+</body>
+
+</html>
