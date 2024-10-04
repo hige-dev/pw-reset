@@ -65,12 +65,11 @@ $ terraform state show aws_apigatewayv2_api.pw_reset | grep '^\s*api_endpoint'
 ## シーケンス図
 ```mermaid
 sequenceDiagram
-  autonumber
   actor line_2 as 依頼者
   participant line_1 as Google Form
   participant line_3 as API Gateway
-  participant line_4 as S3署名付URL
   participant line_5 as Lambda
+  participant line_4 as S3署名付URL
   participant line_6 as Slack
   actor line_7 as 管理者
   participant line_11 as Parameter Store
@@ -86,7 +85,8 @@ sequenceDiagram
   line_1 ->> line_2: URLメール送信
   line_1 ->> line_7: 通知A<br>（依頼者email, リセット対象ID, ランダム文字列）
   line_2 ->> line_4: URLクリック・フォーム送信
-  line_4 ->> line_3: POST /slack-workflow
+  line_4 ->> line_2: htmlフォーム返却
+  line_2 ->> line_3: フォーム送信<br>POST /slack-workflow
   line_3 ->> line_5: slack-workflow実行
   line_5 ->> line_11: token発行・保存
   line_5 ->> line_6: 承認可否投稿
