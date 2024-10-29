@@ -70,27 +70,17 @@ sequenceDiagram
   participant line_1 as Google Form
   participant line_3 as API Gateway
   participant line_5 as Lambda
-  participant line_6 as Slack
-  actor line_7 as 管理者
-  participant line_11 as Parameter Store
   participant line_10 as IAM
   line_2 ->> line_1: リセット対象ID入力
-  line_1 ->> line_7: 通知A（メールアドレス宛）<br>依頼者メールアドレス、リセット対象ID、トークンA(gform_token)
-  line_1 ->> line_3: POST /slack-workflow
-  line_1 ->> line_2: 受付完了メール<br>(一時パスワード発行)
-  line_3 ->> line_5: Lambda認証・<br>slack-workflow実行
-  line_5 ->> line_5: 認証チェック
-  line_5 ->> line_11: トークンB(token_for_pw_reset)発行・保存
-  line_5 ->> line_6: 承認可否投稿
-  line_6 ->> line_7: 通知B（slack宛）<br>依頼者メールアドレス、リセット対象ID、トークンA
-  line_7 ->> line_6: 通知Aと内容が同じことを確認し<br>承認 or 否認
-  line_6 ->> line_3: POST /pw-reset
+  line_1 ->> line_3: POST /pw-reset
+  line_3 ->> line_3: 認証チェック<br>(リクエストに認証トークンが含まれているか)
   line_3 ->> line_5: pw-reset実行
-  line_5 ->> line_5: 承認チェック
-  line_5 ->> line_11: tokenB検証
+  line_5 ->> line_5: ドメインチェック<br>(送信元がd2c.co.jpなど<br>許可リストに含まれているか)
+  line_5 ->> line_5: メールアドレスチェック<br>(依頼者のメールアドレスと<br>IAMユーザーのメールアドレスが一致するか)
   line_5 ->> line_10: パスワードリセット
-  line_5 ->> line_11: tokenB削除
-  line_5 ->> line_6: 処理完了通知
-  line_6 ->> line_2: 通知
+  line_10 -->> line_5: return
+  line_5 -->> line_3: return
+  line_3 -->> line_1: return
+  line_1 -->> line_2: 200の場合のみ一時パスワードを発行<br>それ以外の場合は、失敗した旨通知
   line_2 ->> line_10: 一時パスワードでログインしパスワード変更
 ```
